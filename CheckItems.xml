@@ -1,0 +1,91 @@
+﻿private void LoadBaselineCheckResults()
+{
+string secpolFilePath = @"secpol.cfg"; // 安全策略文件路径
+
+// 添加删除或禁用系统无关用户检查项
+dataGridViewResults.Rows.Add("删除或禁用系统无关用户",
+"删除、禁用或锁定与设备运行、维护等工作无关的账户，避免无关账户被黑客利用。",
+"net user guest",
+"No",
+"detected_value_here",
+"net user administrator",
+"No",
+"如果检测到系统无关用户账号启用，使用 'net user' 命令禁用该用户。");
+}
+
+private void UpdateDetectedValues()
+{
+string secpolFilePath = @"secpol.cfg"; // 安全策略文件路径
+
+// 执行命令并提取输出内容
+string guestOutput = ExecuteCommandAndGetOutput("net user guest");
+string adminOutput = ExecuteCommandAndGetOutput("net user administrator");
+
+// 检查输出内容中是否包含 "账号启用" 并判断账号是否启用
+bool guestEnabled = IsAccountEnabled(guestOutput);
+bool adminEnabled = IsAccountEnabled(adminOutput);
+
+// 更新 DataGridView 中的检测值
+dataGridViewResults.Rows[2].Cells["columnDetectedValue"].Value = guestEnabled ? "Yes" : "No";
+dataGridViewResults.Rows[3].Cells["columnDetectedValue"].Value = adminEnabled ? "Yes" : "No";
+}
+
+private string ExecuteCommandAndGetOutput(string command)
+{
+try
+{
+ProcessStartInfo processInfo = new ProcessStartInfo();
+processInfo.FileName = "cmd.exe";
+processInfo.Arguments = "/c " + command;
+processInfo.RedirectStandardOutput = true; // 重定向标准输出
+processInfo.UseShellExecute = false; // 不使用操作系统外壳程序启动进程
+
+using (Process process = Process.Start(processInfo))
+{
+// 读取命令输出
+using (StreamReader reader = process.StandardOutput)
+{
+return reader.ReadToEnd();
+}
+}
+}
+catch (Exception ex)
+{
+MessageBox.Show("执行命令时出现错误: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+return string.Empty;
+}
+}
+
+private bool IsAccountEnabled(string output)
+{
+// 检查输出中是否包含 "账号启用"
+return output.Contains("账号启用") && output.Contains("Yes");
+}
+
+private void ReinforceSelectedItems()
+{
+foreach (DataGridViewRow row in dataGridViewResults.Rows)
+{
+DataGridViewCheckBoxCell reinforceCell = (DataGridViewCheckBoxCell)row.Cells["columnReinforce"];
+bool reinforceChecked = reinforceCell?.Value != null && (bool)reinforceCell.Value; // 检查是否选择了加固
+
+if (reinforceChecked) // 如果选择了加固
+{
+string itemName = row.Cells["columnName"].Value.ToString(); // 获取项名称
+if (itemName == "删除或禁用系统无关用户")
+{
+// 如果账号启用，则禁用账号
+bool guestEnabled = dataGridViewResults.Rows[2].Cells["columnDetectedValue"].Value.ToString() == "Yes";
+bool adminEnabled = dataGridViewResults.Rows[3].Cells["columnDetectedValue"].Value.ToString() == "Yes";
+if (guestEnabled)
+{
+ExecuteCommand("net user guest /active:no");
+}
+if (adminEnabled)
+{
+ExecuteCommand("net user administrator /active:no");
+}
+}
+}
+}
+}
